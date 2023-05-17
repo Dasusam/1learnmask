@@ -44,8 +44,7 @@ def __connect_api():
 def __create(base, total_count: int):
     first_data_time = base[0].get('dataTime')
 
-    for i in range(total_count):
-        now_data = base[i]
+    for now_data in base:
         now_data_time = string_to_datetime_air_quality(now_data.get('dataTime'))
 
         __create_pm_10_data(now_data, now_data_time)

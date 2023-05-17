@@ -25,5 +25,5 @@ schedule.every().hour.at(":05").do(job) #정시 05분마다 do job
 #schedule.every(1).minutes.do(job) #테스트용 1분마다 do job
 while True:
     schedule.run_pending()
-    time.sleep(60)
+    time.sleep(30)
     #print("waiting")
