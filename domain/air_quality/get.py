@@ -3,25 +3,44 @@ import datetime
 import requests
 
 from const.data_cache import get_datetime_last_air_quality_datetime
-from domain.air_quality.air_quality_pm10 import AirQualityPm10
-from domain.air_quality.air_quality_pm25 import AirQualityPm25
+from domain.air_quality.air_quality import AirQuality
+from domain.air_quality.air_quality_grade_type import AirQualityGradeType
+from domain.air_quality.fine_air_quality_grade_type import FineAirQualityGradeType
 from domain.update_cache import set_datetime_last_air_quality_datetime
+from grade_type import GradeType
 from utils import log
 from utils.log import logger
 from utils.time_utils import string_to_datetime_air_quality
 
 
-def get():
+def get_2_days_data():
+    today = datetime.datetime.today()
+    before_2_days = today - datetime.timedelta(days=2)
+
+    data = [(element._data[0].dataTime, element._data[0].pm10Value, element._data[0].pm25Value) for element in
+            AirQuality.get_2_days_data(str(before_2_days))]
+
+    return data
+
+
+def get() -> (int, int):
     if __check_not_have_to_get_data():
-        logger.info("not have to update data")
-        return
+        logger.info("not have to update data : air_quality")
 
-    jj = __connect_api()
+    else:
+        jj = __connect_api()
 
-    totalCount = jj.get("response").get("body").get("totalCount")
-    base = jj.get("response").get("body").get("items")
+        base = jj.get("response").get("body").get("items")
 
-    __create(base, totalCount)
+        __create(base)
+
+    latest_data = AirQuality.get_latest_data()._data[0]
+    pm10 = latest_data.pm10Value
+    pm25 = latest_data.pm25Value
+    pm10_grade = FineAirQualityGradeType.check_grade(pm10)
+    pm25_grade = FineAirQualityGradeType.check_grade(pm25)
+
+    return pm10_grade.value, pm25_grade.value
 
 
 def __connect_api():
@@ -41,34 +60,22 @@ def __connect_api():
     return res.json()
 
 
-def __create(base, total_count: int):
+def __create(base):
     first_data_time = base[0].get('dataTime')
 
     for now_data in base:
         now_data_time = string_to_datetime_air_quality(now_data.get('dataTime'))
 
-        __create_pm_10_data(now_data, now_data_time)
-        __create_pm_25_data(now_data, now_data_time)
+        __create_data(now_data, now_data_time)
 
     set_datetime_last_air_quality_datetime(first_data_time)
 
 
-def __create_pm_10_data(now_data, now_data_time: datetime.datetime):
+def __create_data(now_data, now_data_time: datetime.datetime):
     if now_data_time > get_datetime_last_air_quality_datetime():
-        log.logger.info("new data : " + now_data.get('dataTime') + " , (pm10Value)")
-        AirQualityPm10(now_data.get('dataTime'), now_data.get('pm10Value')).save()
-
-    else:
-        log.logger.info("existing data : " + now_data.get('dataTime') + " , (pm10Value)")
-
-
-def __create_pm_25_data(now_data, now_data_time: datetime.datetime):
-    if now_data_time > get_datetime_last_air_quality_datetime():
-        log.logger.info("new data : " + now_data.get('dataTime') + " , (pm25Value)")
-        AirQualityPm25(now_data.get('dataTime'), now_data.get('pm25Value')).save()
-
-    else:
-        log.logger.info("existing data : " + now_data.get('dataTime') + " , (pm25Value)")
+        log.logger.info("air quality new data : " + now_data.get('dataTime') + " , (air_quality)")
+        AirQuality(now_data.get('dataTime'), now_data.get('pm10Value'), now_data.get('pm25Value')).save()
+        # sorting 필요
 
 
 def __check_not_have_to_get_data() -> bool:

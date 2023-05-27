@@ -1,15 +1,10 @@
-drop table if exists air_quality10;
-drop table if exists air_quality25;
+drop table if exists air_quality;
 drop table if exists covid;
 
-CREATE TABLE air_quality10
+CREATE TABLE air_quality
                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
                  dataTime TEXT,
-                 pm10Value INTEGER);
-
-CREATE TABLE air_quality25
-                (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                 dataTime TEXT,
+                 pm10Value INTEGER,
                  pm25Value INTEGER);
 
 CREATE TABLE covid

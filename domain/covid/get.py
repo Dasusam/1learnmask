@@ -1,47 +1,80 @@
 import datetime
 
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from const.config import driver_path, covid_url
+from const.config import covid_url, chrome_driver
 from const.data_cache import get_date_last_covid
 from domain.covid.covid import Covid
 from domain.update_cache import __set_date_last_covid_date
+from grade_type import GradeType
 from utils import log
 from utils.log import logger
 
+def get_30_days_data():
+    today = datetime.date.today()
+    before_30_days = today - datetime.timedelta(days=30)
 
-def get():
+    data = [(element._data[0].date, element._data[0].value) for element in Covid.get_30_days_data(str(before_30_days))]
+    return data
+
+
+def get() -> GradeType:
     if __check_not_have_to_get_data():
-        logger.info("not have to update data")
-        return
+        logger.info("not have to update data : covid")
 
-    driver = __get_chrome_driver()
-    covid_values = __get_covid_data_with_crowl(driver)
+    else:
+        driver = __get_chrome_driver()
+        covid_values = __get_covid_data_with_crowl(driver)
 
-    first_day = __get_first_day_of_crowl(covid_values)
-    element_date = first_day
+        first_day = __get_first_day_of_crowl(covid_values)
+        element_date = first_day
 
-    for element in covid_values:
-        __check_and_save_in_db(element, element_date)
-        element_date += datetime.timedelta(days=1)
+        for element in covid_values:
+            __check_and_save_in_db(element, element_date)
+            element_date += datetime.timedelta(days=1)
 
-    __set_date_last_covid_date(element_date)
+        __set_date_last_covid_date(element_date)
 
-    driver.quit()
+        driver.quit()
+
+    if cnt_week_doubling():
+        return GradeType.VERY_BAD
+    else:
+        return GradeType.VERY_GOOD
+
+
+def cnt_week_doubling() -> bool:
+    today = datetime.date.today()
+    check = 7
+    doubling_cnt = 0
+    while check != 0:
+        date = today - datetime.timedelta(days=check)
+        if is_week_doubling(date):
+            doubling_cnt += 1
+
+        check -= 1
+
+    if doubling_cnt >= 3:
+        return True
+    else:
+        return False
+
+
+def is_week_doubling(today: datetime.date) -> bool:
+    last_week = today - datetime.timedelta(weeks=1)
+    last_week_string = str(last_week)
+    today_string = str(today)
+    aa = Covid.get_by_date(last_week_string)._data[0]
+    last_week_value = Covid.get_by_date(last_week_string)._data[0].value
+    today_value = Covid.get_by_date(today_string)._data[0].value
+
+    return today_value >= 2 * last_week_value
 
 
 def __get_chrome_driver() -> WebDriver:
-    service = Service(driver_path)
-    options = Options()
-    options.add_argument('--headless')
-    chrome_driver = webdriver.Chrome(service=service, options=options)
-
     chrome_driver.get(covid_url)
 
     return chrome_driver
@@ -80,10 +113,8 @@ def __check_and_save_in_db(element, date):
 
 def __create_covid_data(covid: Covid):
     if covid.date > get_date_last_covid():
-        log.logger.info("new data : " + str(covid.date) + " , " + str(covid.value))
+        log.logger.info("covid new data : " + str(covid.date) + " , " + str(covid.value))
         covid.save()
-    else:
-        log.logger.info("existing data : " + str(covid.date) + " , " + str(covid.value))
 
 
 def __check_not_have_to_get_data() -> bool:
